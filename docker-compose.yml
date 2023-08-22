@@ -1,0 +1,159 @@
+version: '3.7'
+
+services:
+
+# KAFKA CLUSTER
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INSIDE:PLAINTEXT,OUTSIDE:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: INSIDE://kafka:19092,OUTSIDE://localhost:9092
+      KAFKA_LISTENERS: INSIDE://0.0.0.0:19092,OUTSIDE://0.0.0.0:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: INSIDE
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    ports:
+      - "9092:9092"
+
+# RTSP STREAM RECORDERS
+  rtsp-kafka-producer1:
+    image: stream_producer:latest
+    depends_on:
+      - kafka
+      - zookeeper
+    restart: always
+    environment:
+      KAFKA_BROKER: kafka:19092
+      RTSP_URL: rtsp://192.168.1.114:8554/stream1
+      KAFKA_TOPIC: camera1
+      RETRY_INTERVAL: 5
+  
+  rtsp-kafka-producer2:
+    image: stream_producer:latest
+    depends_on:
+      - kafka
+      - zookeeper
+    restart: always
+    environment:
+      KAFKA_BROKER: kafka:19092
+      RTSP_URL: rtsp://192.168.1.114:8554/stream2
+      KAFKA_TOPIC: camera2
+      RETRY_INTERVAL: 5
+
+  rtsp-kafka-producer3:
+    image: stream_producer:latest
+    depends_on:
+      - kafka
+      - zookeeper
+    restart: always
+    environment:
+      KAFKA_BROKER: kafka:19092
+      RTSP_URL: rtsp://192.168.1.114:8554/stream3
+      KAFKA_TOPIC: camera3
+      RETRY_INTERVAL: 5
+
+  rtsp-kafka-producer4:
+    image: stream_producer:latest
+    depends_on:
+      - kafka
+      - zookeeper
+    restart: always
+    environment:
+      KAFKA_BROKER: kafka:19092
+      RTSP_URL: rtsp://192.168.1.114:8554/stream4
+      KAFKA_TOPIC: camera4
+      RETRY_INTERVAL: 5
+
+# EXTRACTORS
+  extractor_1:
+    image: timestamp_extractor:latest
+    depends_on:
+      - rtsp-kafka-producer1
+    restart: always
+    environment:
+      KAFKA_BROKER: kafka:19092
+      INPUT_TOPIC: camera1
+      OUTPUT_TOPIC: indexed-frames
+      TIMESTAMP_LOCATION: "10x440x390x470"
+      TIME_START_MINUTE: 300
+
+  extractor_2:
+    image: timestamp_extractor:latest
+    depends_on:
+      - rtsp-kafka-producer2
+    restart: always
+    environment:
+      KAFKA_BROKER: kafka:19092
+      INPUT_TOPIC: camera2
+      OUTPUT_TOPIC: indexed-frames
+      TIMESTAMP_LOCATION: "10x440x390x470"
+      TIME_START_MINUTE: 300
+
+  extractor_3:
+    image: timestamp_extractor:latest
+    depends_on:
+      - rtsp-kafka-producer3
+    restart: always
+    environment:
+      KAFKA_BROKER: kafka:19092
+      INPUT_TOPIC: camera3
+      OUTPUT_TOPIC: indexed-frames
+      TIMESTAMP_LOCATION: "10x440x390x470"
+      TIME_START_MINUTE: 300
+
+  extractor_4:
+    image: timestamp_extractor:latest
+    depends_on:
+      - rtsp-kafka-producer4
+    restart: always
+    environment:
+      KAFKA_BROKER: kafka:19092
+      INPUT_TOPIC: camera4
+      OUTPUT_TOPIC: indexed-frames
+      TIMESTAMP_LOCATION: "10x440x390x470"
+      TIME_START_MINUTE: 300
+
+# Synchronizer
+  synchronizer:
+    image: synchronizer:latest
+    depends_on:
+      - extractor_1
+      - extractor_2
+      - extractor_3
+      - extractor_4
+    restart: always
+    environment:
+      KAFKA_BROKER: kafka:19092
+      INPUT_TOPIC: indexed-frames
+      OUTPUT_TOPIC: synchronized-frames
+
+# Estimator CUDA 11.8 on the system
+  estimator:
+    image: estimator:latest
+    depends_on:
+      - synchronizer
+    restart: always
+    deploy:
+      resources:
+        reservations:
+          devices:
+          - driver: nvidia
+            count: all
+            capabilities: [gpu]
+    shm_size: '2gb'
+    environment:
+      KAFKA_BROKER: kafka:19092
+      INPUT_TOPIC: synchronized-frames
+      NVIDIA_VISIBLE_DEVICES: all
+      MODEL_PATH: models/maskrcnn_model_full.pth
+    volumes:
+      - ./estimator/models:/app/models

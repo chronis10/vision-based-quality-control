@@ -1,0 +1,50 @@
+version: '3'
+services:
+  rtsp-server:
+    image: aler9/rtsp-simple-server
+    ports:
+      - "8554:8554"
+
+  streamer1:
+    image: d_streamer:latest
+    environment:
+      - VIDEO_NUMBER=1
+      - RTSP_SERVER=rtsp-server
+      - STREAM_DELAY=2.0
+      - STREAM_NAME=stream1
+      - BACKGROUND_IMAGE=images/final1.jpg
+    depends_on:
+      - rtsp-server
+
+  streamer2:
+    image: d_streamer:latest
+    environment:
+      - VIDEO_NUMBER=2
+      - RTSP_SERVER=rtsp-server
+      - STREAM_DELAY=0
+      - STREAM_NAME=stream2
+      - BACKGROUND_IMAGE=images/final2.jpg
+    depends_on:
+      - rtsp-server
+
+  streamer3:
+    image: d_streamer:latest
+    environment:
+      - VIDEO_NUMBER=3
+      - RTSP_SERVER=rtsp-server
+      - STREAM_DELAY=1.0
+      - STREAM_NAME=stream3
+      - BACKGROUND_IMAGE=images/final3.jpg
+    depends_on:
+      - rtsp-server
+
+  streamer4:
+    image: d_streamer:latest
+    environment:
+      - VIDEO_NUMBER=4
+      - RTSP_SERVER=rtsp-server
+      - STREAM_DELAY=0
+      - STREAM_NAME=stream4
+      - BACKGROUND_IMAGE=images/final0.jpg
+    depends_on:
+      - rtsp-server
